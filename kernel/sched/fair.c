@@ -694,7 +694,7 @@ static u64 sched_vslice(struct cfs_rq *cfs_rq, struct sched_entity *se)
  */
 static inline void
 __update_curr(struct cfs_rq *cfs_rq, struct sched_entity *curr,
-	      unsigned long delta_exec, unsigned long long delta_cycle)
+	      unsigned long delta_exec, u64 delta_cycle)
 {
 	unsigned long delta_exec_weighted;
 
@@ -720,7 +720,7 @@ static void update_curr(struct cfs_rq *cfs_rq)
 	unsigned long delta_exec;
 
 	u64 now_cycle = read_cycles();
-	u64 delta_cycle;	
+	u64 delta_cycle = 0;	
 
 
 	if (unlikely(!curr))
@@ -779,7 +779,7 @@ update_stats_wait_end(struct cfs_rq *cfs_rq, struct sched_entity *se)
 {
 	schedstat_set(se->statistics.wait_max, max(se->statistics.wait_max,
 			rq_of(cfs_rq)->clock - se->statistics.wait_start));
-	schedstat_set(se->statistics.wait_count, se->statistics.wait_count + 1);
+	//schedstat_set(se->statistics.wait_count, se->statistics.wait_count + 1);
 	schedstat_set(se->statistics.wait_sum, se->statistics.wait_sum +
 			rq_of(cfs_rq)->clock - se->statistics.wait_start);
 #ifdef CONFIG_SCHEDSTATS
@@ -1661,7 +1661,6 @@ static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		//'cur_cycle != 0' means module is loaded.
 		if(cur_cycle != 0){
 			u64 delta_cycle = cur_cycle - se->statistics.sleep_start_cycle;
-			//se->statistics.run_sum_cycle += run_delta;
 			se->statistics.sleep_sum_cycle += delta_cycle;
 			se->statistics.sleep_start_cycle = 0;
 		}
@@ -1669,8 +1668,8 @@ static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		if ((s64)delta < 0)
 			delta = 0;
 
-		if (unlikely(delta > se->statistics.sleep_max))
-			se->statistics.sleep_max = delta;
+		//init sleep_start
+		schedstat_set(se->statistics.wait_count, se->statistics.wait_count + 1);
 
 		se->statistics.sleep_start = 0;
 		se->statistics.sum_sleep_runtime += delta;
@@ -1687,7 +1686,6 @@ static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 
 		if(cur_cycle != 0){
 			u64 delta_cycle = cur_cycle - se->statistics.block_start_cycle;
-			//se->statistics.run_sum_cycle += run_delta;
 			se->statistics.block_sum_cycle += delta_cycle;
 			se->statistics.block_start_cycle = 0;
 		}
@@ -1695,16 +1693,17 @@ static void enqueue_sleeper(struct cfs_rq *cfs_rq, struct sched_entity *se)
 		if ((s64)delta < 0)
 			delta = 0;
 
-		if (unlikely(delta > se->statistics.block_max))
-			se->statistics.block_max = delta;
-
 		se->statistics.block_start = 0;
-		se->statistics.sum_sleep_runtime += delta;
+		
+		//sum of block time.
+		se->statistics.block_max += delta;
+		//count num of init
+		se->statistics.iowait_count++;
 
 		if (tsk) {
 			if (tsk->in_iowait) {
 				se->statistics.iowait_sum += delta;
-				se->statistics.iowait_count++;
+				//se->statistics.iowait_count++;
 				trace_sched_stat_iowait(tsk, delta);
 			}
 
